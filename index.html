@@ -2,18 +2,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>暖心语录抽签</title>
+    <!-- 1. 先引入样式和基础库 -->
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome -->
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    <!-- 引入 Supabase 客户端库 -->
+    <!-- 2. 引入 Supabase 客户端库 -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     
     <script>
-        // === 初始化 Supabase 客户端 (使用你提供的密钥) ===
+        // 3. 紧接着初始化 Supabase 客户端（使用你提供的密钥）
+        const SUPABASE_URL = 'https://gurgmmwgrlyomvgjzsow.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1cmdtbXdncmx5b212Z2p6c293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0NDY3OTQsImV4cCI6MjA4MjAyMjc5NH0.L92NYmcMvKYtXWN-NsuAdEiKIBC6MUJBsGEoWFU3xso';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // === 初始化结束 ===
-
+        // 4. 之后的 Tailwind 配置和其他代码
         tailwind.config = {
             theme: {
                 extend: {
