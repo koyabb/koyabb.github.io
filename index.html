@@ -6,8 +6,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome -->
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入 Supabase 客户端库 -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     
     <script>
+        // === 初始化 Supabase 客户端 (使用你提供的密钥) ===
+        const SUPABASE_URL = 'https://gurgmmwgrlyomvgjzsow.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1cmdtbXdncmx5b212Z2p6c293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0NDY3OTQsImV4cCI6MjA4MjAyMjc5NH0.L92NYmcMvKYtXWN-NsuAdEiKIBC6MUJBsGEoWFU3xso';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // === 初始化结束 ===
+
         tailwind.config = {
             theme: {
                 extend: {
@@ -758,63 +766,143 @@
     </div>
     
     <script>
-        // 数据存储管理
+        // 数据存储管理 - 云端Supabase版本
         const StorageManager = {
-            // 获取所有语录
-            getQuotes: function() {
-                const quotes = localStorage.getItem('quotes');
-                return quotes ? JSON.parse(quotes) : [];
+            // 1. 获取所有语录
+            getQuotes: async function() {
+                console.log('从Supabase获取所有语录...');
+                const { data, error } = await supabase
+                    .from('quotes')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    console.error('获取语录失败:', error);
+                    return [];
+                }
+                return data.map(item => ({
+                    id: item.id.toString(),
+                    content: item.content,
+                    tags: item.tags ? item.tags.split(',') : [],
+                    isFavorite: item.is_favorite,
+                    createTime: item.created_at,
+                    updateTime: item.created_at
+                }));
             },
-            
-            // 保存语录
-            saveQuote: function(quote) {
-                const quotes = this.getQuotes();
-                quote.id = Date.now().toString();
-                quote.createTime = new Date().toISOString();
-                quote.updateTime = new Date().toISOString();
-                quotes.push(quote);
-                localStorage.setItem('quotes', JSON.stringify(quotes));
-                return quote;
-            },
-            
-            // 更新语录
-            updateQuote: function(id, updatedQuote) {
-                const quotes = this.getQuotes();
-                const index = quotes.findIndex(q => q.id === id);
-                if (index !== -1) {
-                    updatedQuote.id = id;
-                    updatedQuote.createTime = quotes[index].createTime;
-                    updatedQuote.updateTime = new Date().toISOString();
-                    quotes[index] = updatedQuote;
-                    localStorage.setItem('quotes', JSON.stringify(quotes));
-                    return updatedQuote;
+
+            // 2. 保存语录
+            saveQuote: async function(quote) {
+                console.log('保存语录到Supabase:', quote);
+                const { data, error } = await supabase
+                    .from('quotes')
+                    .insert([
+                        {
+                            content: quote.content,
+                            tags: quote.tags ? quote.tags.join(',') : null,
+                            is_favorite: quote.isFavorite || false
+                        }
+                    ])
+                    .select();
+                
+                if (error) {
+                    console.error('保存语录失败:', error);
+                    return null;
+                }
+                
+                if (data && data.length > 0) {
+                    const savedItem = data[0];
+                    return {
+                        id: savedItem.id.toString(),
+                        content: savedItem.content,
+                        tags: savedItem.tags ? savedItem.tags.split(',') : [],
+                        isFavorite: savedItem.is_favorite,
+                        createTime: savedItem.created_at,
+                        updateTime: savedItem.created_at
+                    };
                 }
                 return null;
             },
-            
-            // 删除语录
-            deleteQuote: function(id) {
-                const quotes = this.getQuotes();
-                const filteredQuotes = quotes.filter(q => q.id !== id);
-                localStorage.setItem('quotes', JSON.stringify(filteredQuotes));
-                return filteredQuotes;
-            },
-            
-            // 切换收藏状态
-            toggleFavorite: function(id) {
-                const quotes = this.getQuotes();
-                const index = quotes.findIndex(q => q.id === id);
-                if (index !== -1) {
-                    quotes[index].isFavorite = !quotes[index].isFavorite;
-                    localStorage.setItem('quotes', JSON.stringify(quotes));
-                    return quotes[index];
+
+            // 3. 更新语录
+            updateQuote: async function(id, updatedQuote) {
+                console.log('在Supabase中更新语录:', id, updatedQuote);
+                const { data, error } = await supabase
+                    .from('quotes')
+                    .update({
+                        content: updatedQuote.content,
+                        tags: updatedQuote.tags ? updatedQuote.tags.join(',') : null,
+                        is_favorite: updatedQuote.isFavorite
+                    })
+                    .eq('id', parseInt(id))
+                    .select();
+                
+                if (error) {
+                    console.error('更新语录失败:', error);
+                    return null;
+                }
+                
+                if (data && data.length > 0) {
+                    const updatedItem = data[0];
+                    return {
+                        id: updatedItem.id.toString(),
+                        content: updatedItem.content,
+                        tags: updatedItem.tags ? updatedItem.tags.split(',') : [],
+                        isFavorite: updatedItem.is_favorite,
+                        createTime: updatedItem.created_at,
+                        updateTime: updatedItem.created_at
+                    };
                 }
                 return null;
             },
-            
-            // 获取所有标签
-            getAllTags: function() {
-                const quotes = this.getQuotes();
+
+            // 4. 删除语录
+            deleteQuote: async function(id) {
+                console.log('从Supabase删除语录:', id);
+                const { error } = await supabase
+                    .from('quotes')
+                    .delete()
+                    .eq('id', parseInt(id));
+                
+                if (error) {
+                    console.error('删除语录失败:', error);
+                    return false;
+                }
+                return true;
+            },
+
+            // 5. 切换收藏状态
+            toggleFavorite: async function(id) {
+                console.log('在Supabase中切换收藏状态:', id);
+                const { data: currentData } = await supabase
+                    .from('quotes')
+                    .select('is_favorite')
+                    .eq('id', parseInt(id))
+                    .single();
+                
+                if (!currentData) return null;
+                
+                const newFavoriteState = !currentData.is_favorite;
+                
+                const { data, error } = await supabase
+                    .from('quotes')
+                    .update({ is_favorite: newFavoriteState })
+                    .eq('id', parseInt(id))
+                    .select();
+                
+                if (error) {
+                    console.error('切换收藏状态失败:', error);
+                    return null;
+                }
+                
+                if (data && data.length > 0) {
+                    return data[0];
+                }
+                return null;
+            },
+
+            // 6. 获取所有标签
+            getAllTags: async function() {
+                const quotes = await this.getQuotes();
                 const tagsSet = new Set();
                 quotes.forEach(quote => {
                     if (quote.tags && Array.isArray(quote.tags)) {
@@ -841,9 +929,9 @@
             },
             
             // 加载语录数据
-            loadQuotes: function() {
-                console.log('加载语录数据...');
-                this.quotes = StorageManager.getQuotes();
+            loadQuotes: async function() {
+                console.log('从云端加载语录数据...');
+                this.quotes = await StorageManager.getQuotes();
                 console.log('语录数据:', this.quotes);
                 this.renderQuoteList();
                 this.checkEmptyState();
@@ -857,7 +945,6 @@
                 document.getElementById('nav-home').addEventListener('click', function() {
                     console.log('点击首页按钮');
                     App.showPage('page-home');
-                    // 重置抽签状态，确保回到初始抽签界面
                     App.resetDraw();
                 });
                 
@@ -876,11 +963,8 @@
                     tag.addEventListener('click', function() {
                         const tagValue = this.dataset.tag;
                         console.log('选择主题标签:', tagValue);
-                        
-                        // 更新选中状态
                         document.querySelectorAll('.small-theme-tag').forEach(t => t.classList.remove('active'));
                         this.classList.add('active');
-                        
                         App.selectedTag = tagValue;
                     });
                 });
@@ -948,42 +1032,29 @@
             // 显示指定页面
             showPage: function(pageId) {
                 console.log('显示页面:', pageId);
-                
-                // 更新导航按钮状态
                 document.querySelectorAll('.nav-btn').forEach(btn => {
                     btn.classList.remove('active', 'bg-primary', 'text-white');
                 });
-                
                 const navMap = {
                     'page-home': 'nav-home',
                     'page-manage': 'nav-manage',
                     'page-add': 'nav-add'
                 };
-                
                 if (navMap[pageId]) {
                     document.getElementById(navMap[pageId]).classList.add('active', 'bg-primary', 'text-white');
                 }
-                
-                // 隐藏所有页面
                 document.querySelectorAll('.page').forEach(page => {
                     page.classList.add('hidden');
                 });
-                
-                // 延迟显示目标页面，增强过渡效果
                 setTimeout(() => {
                     document.getElementById(pageId).classList.remove('hidden');
-                    
-                    // 如果是管理页面，重新渲染语录列表
                     if (pageId === 'page-manage') {
                         this.renderQuoteList();
                         this.checkEmptyState();
                     }
-                    
-                    // 如果是添加页面，重置表单
                     if (pageId === 'page-add') {
                         document.getElementById('add-form').reset();
                     }
-                    
                     this.currentPage = pageId;
                 }, 300);
             },
@@ -998,39 +1069,25 @@
                     this.showPage('page-add');
                     return;
                 }
-                
-                // 根据选中的标签筛选语录
                 let filteredQuotes = this.quotes;
                 if (this.selectedTag !== 'all') {
                     filteredQuotes = this.quotes.filter(quote => 
                         quote.tags && Array.isArray(quote.tags) && quote.tags.includes(this.selectedTag)
                     );
-                    
                     if (filteredQuotes.length === 0) {
                         alert(`没有找到"${this.selectedTag}"类别的语录，请先添加相关语录！`);
                         return;
                     }
                 }
-                
-                // 显示宝盒动画 - 只使用上下摇摆
                 const drawBox = document.getElementById('draw-box');
                 drawBox.parentElement.classList.add('animate-float');
-                
-                // 添加发光效果
                 drawBox.parentElement.classList.add('animate-shine');
-                
                 setTimeout(() => {
-                    // 随机选择一条语录
                     const randomIndex = Math.floor(Math.random() * filteredQuotes.length);
                     const selectedQuote = filteredQuotes[randomIndex];
                     console.log('选中的语录:', selectedQuote);
-                    
-                    // 延迟显示结果，增强期待感
                     setTimeout(() => {
-                        // 移除动画效果
                         drawBox.parentElement.classList.remove('animate-float', 'animate-shine');
-                        
-                        // 显示结果
                         this.showDrawResult(selectedQuote);
                     }, 500);
                 }, 1200);
@@ -1039,12 +1096,7 @@
             // 显示抽签结果
             showDrawResult: function(quote) {
                 console.log('显示抽签结果:', quote);
-                
                 document.getElementById('quote-content').textContent = quote.content;
-                
-                // 标签显示已移除
-                
-                // 隐藏抽签区域，显示结果区域
                 document.querySelector('.draw-area').classList.add('hidden');
                 document.getElementById('result-area').classList.remove('hidden');
             },
@@ -1074,66 +1126,54 @@
             // 重置抽签
             resetDraw: function() {
                 console.log('重置抽签');
-                
                 document.querySelector('.draw-area').classList.remove('hidden');
                 document.getElementById('result-area').classList.add('hidden');
-                
-                // 确保宝盒回到初始状态
                 const drawBox = document.getElementById('draw-box');
                 drawBox.parentElement.classList.remove('animate-float', 'animate-shine');
             },
             
             // 添加语录
-            addQuote: function(e) {
+            addQuote: async function(e) {
                 e.preventDefault();
-                console.log('添加语录');
-                
+                console.log('添加语录到云端');
                 const content = document.getElementById('quote-input').value.trim();
-                
                 if (!content) {
                     alert('请输入语录内容！');
                     return;
                 }
-                
-                // 获取选中的标签
                 const selectedTags = [];
                 document.querySelectorAll('input[name="tags"]:checked').forEach(checkbox => {
                     selectedTags.push(checkbox.value);
                 });
-                
-                // 如果没有选择标签，默认为空数组
-                
                 const newQuote = {
                     content: content,
                     tags: selectedTags,
                     isFavorite: false
                 };
-                
                 console.log('新语录:', newQuote);
-                
-                StorageManager.saveQuote(newQuote);
-                this.loadQuotes();
-                this.updateTagsFilter();
-                this.showPage('page-manage');
+                const savedQuote = await StorageManager.saveQuote(newQuote);
+                if (savedQuote) {
+                    this.loadQuotes();
+                    this.updateTagsFilter();
+                    this.showPage('page-manage');
+                } else {
+                    alert('保存失败，请重试！');
+                }
             },
             
             // 渲染语录列表
             renderQuoteList: function() {
                 console.log('渲染语录列表');
-                
                 const listContainer = document.getElementById('quote-list');
                 listContainer.innerHTML = '';
-                
                 this.quotes.forEach(quote => {
                     const card = document.createElement('div');
                     card.className = 'quote-card p-6 card-hover';
                     card.dataset.id = quote.id;
                     card.dataset.tags = JSON.stringify(quote.tags || []);
-                    
                     const tagsHTML = (quote.tags && Array.isArray(quote.tags) && quote.tags.length > 0) 
                         ? quote.tags.map(tag => `<span class="small-tag tag-${this.getTagClass(tag)}"><i class="fa ${this.getTagIcon(tag)} mr-1"></i>${tag}</span>`).join('')
                         : '';
-                    
                     card.innerHTML = `
                         <div class="flex justify-between items-start mb-4">
                             <div class="flex-1">
@@ -1149,11 +1189,8 @@
                             ${tagsHTML}
                         </div>
                     `;
-                    
                     listContainer.appendChild(card);
                 });
-                
-                // 添加编辑按钮事件
                 document.querySelectorAll('.edit-btn').forEach(btn => {
                     btn.addEventListener('click', function(e) {
                         console.log('点击编辑按钮');
@@ -1165,10 +1202,8 @@
             // 检查空状态
             checkEmptyState: function() {
                 console.log('检查空状态');
-                
                 const emptyState = document.getElementById('empty-state');
                 const listContainer = document.getElementById('quote-list');
-                
                 if (this.quotes.length === 0) {
                     emptyState.classList.remove('hidden');
                     listContainer.classList.add('hidden');
@@ -1181,10 +1216,7 @@
             // 更新标签筛选
             updateTagsFilter: function() {
                 console.log('更新标签筛选');
-                
                 const filter = document.getElementById('tag-filter');
-                
-                // 保留预设的标签选项
                 filter.innerHTML = `
                     <option value="all">所有标签</option>
                     <option value="事业">事业</option>
@@ -1197,19 +1229,14 @@
             // 筛选语录
             filterQuotes: function() {
                 console.log('筛选语录');
-                
                 const searchValue = document.getElementById('search-input').value.toLowerCase();
                 const tagValue = document.getElementById('tag-filter').value;
-                
                 const cards = document.querySelectorAll('.quote-card');
-                
                 cards.forEach(card => {
                     const content = card.textContent.toLowerCase();
                     const tags = JSON.parse(card.dataset.tags || '[]');
-                    
                     const matchSearch = searchValue === '' || content.includes(searchValue);
                     const matchTag = tagValue === 'all' || tags.includes(tagValue);
-                    
                     if (matchSearch && matchTag) {
                         card.style.opacity = '0';
                         setTimeout(() => {
@@ -1229,27 +1256,20 @@
             // 打开编辑弹窗
             openEditModal: function(e) {
                 console.log('打开编辑弹窗');
-                
                 const quoteId = e.currentTarget.dataset.id;
                 const quote = this.quotes.find(q => q.id === quoteId);
-                
                 if (quote) {
                     document.getElementById('edit-id').value = quote.id;
                     document.getElementById('edit-quote').value = quote.content;
-                    
-                    // 重置标签复选框
                     document.querySelectorAll('input[name="edit-tags"]').forEach(checkbox => {
                         checkbox.checked = false;
                     });
-                    
-                    // 设置选中的标签
                     if (quote.tags && Array.isArray(quote.tags)) {
                         quote.tags.forEach(tag => {
                             const checkbox = document.querySelector(`input[name="edit-tags"][value="${tag}"]`);
                             if (checkbox) checkbox.checked = true;
                         });
                     }
-                    
                     document.getElementById('edit-modal').classList.remove('hidden');
                 }
             },
@@ -1257,56 +1277,50 @@
             // 关闭编辑弹窗
             closeEditModal: function() {
                 console.log('关闭编辑弹窗');
-                
                 document.getElementById('edit-modal').classList.add('hidden');
             },
             
             // 更新语录
-            updateQuote: function(e) {
+            updateQuote: async function(e) {
                 e.preventDefault();
-                console.log('更新语录');
-                
+                console.log('在云端更新语录');
                 const id = document.getElementById('edit-id').value;
                 const content = document.getElementById('edit-quote').value.trim();
-                
                 if (!content) {
                     alert('请输入语录内容！');
                     return;
                 }
-                
-                // 获取选中的标签
                 const selectedTags = [];
                 document.querySelectorAll('input[name="edit-tags"]:checked').forEach(checkbox => {
                     selectedTags.push(checkbox.value);
                 });
-                
-                // 如果没有选择标签，默认为空数组
-                
                 const updatedQuote = {
                     content: content,
                     tags: selectedTags,
                     isFavorite: this.quotes.find(q => q.id === id).isFavorite
                 };
-                
                 console.log('更新的语录:', updatedQuote);
-                
-                StorageManager.updateQuote(id, updatedQuote);
-                this.loadQuotes();
-                this.updateTagsFilter();
-                this.closeEditModal();
-            },
-            
-            // 删除语录
-            deleteQuote: function() {
-                console.log('删除语录');
-                
-                const id = document.getElementById('edit-id').value;
-                
-                if (confirm('确定要删除这条语录吗？')) {
-                    StorageManager.deleteQuote(id);
+                const updated = await StorageManager.updateQuote(id, updatedQuote);
+                if (updated) {
                     this.loadQuotes();
                     this.updateTagsFilter();
                     this.closeEditModal();
+                } else {
+                    alert('更新失败，请重试！');
+                }
+            },
+            
+            // 删除语录
+            deleteQuote: async function() {
+                console.log('从云端删除语录');
+                const id = document.getElementById('edit-id').value;
+                if (confirm('确定要删除这条语录吗？')) {
+                    const success = await StorageManager.deleteQuote(id);
+                    if (success) {
+                        this.loadQuotes();
+                        this.updateTagsFilter();
+                        this.closeEditModal();
+                    }
                 }
             }
         };
